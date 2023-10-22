@@ -7,6 +7,73 @@
 // Scripts
 //
 
+const updateStatusBadge = (newStatus) => {
+    const serverStatus = document.querySelector('.server-status');
+    const { online, players } = newStatus;
+    const oldClassName = 'bg-danger';
+    let className = oldClassName,
+        newText = serverStatus.innerText;
+    if (online && players.max === 0) {
+        newText = 'TEMPORARILY OFFLINE';
+        className = 'bg-warning';
+    } else if (online) {
+        newText = 'ONLINE';
+        className = 'bg-success';
+    } else {
+        newText = 'OFFLINE';
+    }
+    // serverStatus.innerText = newText !== 'OFFLINE' ? `${version} - ${newText}` : newText;
+    serverStatus.innerHTML = newText;
+    serverStatus.classList.remove(oldClassName);
+    serverStatus.classList.add(className);
+
+    localStorage.setItem('last-wma-status', JSON.stringify({
+        timestamp: new Date().getTime(),
+        data: newStatus
+    }));
+}
+
+const errorFallback = (error) => {
+    console.error(error);
+    const serverStatus = document.querySelector('.server-status');
+    serverStatus.innerHTML = 'UNKNOWN';
+};
+
+const fetchUpdatedStatus = () => {
+    fetch('https://api.mcsrvstat.us/3/play.wma.im')
+        .then(resp => resp.json())
+        .then(updateStatusBadge)
+        .catch(errorFallback);
+};
+
+const loadLatestStatus = () => {
+    const lastStatus = localStorage.getItem('last-wma-status');
+    if (!lastStatus) {
+        fetchUpdatedStatus();
+    } else {
+        let lastStatusObj;
+        try {
+            lastStatusObj = JSON.parse(lastStatus);
+        } catch (err) {
+            console.error(err);
+            fetchUpdatedStatus();
+            return;
+        }
+        // 5 minutes
+        const maxTimeDiff = 300000;
+        const currentTime = new Date().getTime();
+        if (currentTime - lastStatusObj.timestamp > maxTimeDiff) {
+            fetchUpdatedStatus();
+        } else {
+            try {
+                updateStatusBadge(lastStatusObj.data);
+            } catch (e) {
+                errorFallback(e);
+            }
+        }
+    }
+}
+
 window.addEventListener('DOMContentLoaded', event => {
 
     // Activate Bootstrap scrollspy on the main nav element
@@ -33,6 +100,7 @@ window.addEventListener('DOMContentLoaded', event => {
 
     tippy('[data-tippy-content]', {
         placement: 'bottom'
-      });
+    });
 
+    loadLatestStatus();
 });
